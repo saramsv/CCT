@@ -5,10 +5,6 @@ body_part_sequencing/scripts/__pycache__/
 VOCtrainval_11-May-2012*
 pseudo_labels/result*
 pseudo_labels/saved*
-VOCtrainval_11-May-2012*
-pseudo_labels/result*
-pseudo_labels/saved*
-body_part_data/trained_models
 pseudo_labels/voc12/AllLabeledBodyPartNewNaming
 pseudo_labels/voc12/AllLabeledBodyPartNewNamingExtended
 pseudo_labels/voc12/all_clustersCleanedByNoahSaraKelley
@@ -20,7 +16,6 @@ pseudo_labels/voc12/sequences_pseudo_labels
 outputs
 *core*
 saved*
-body_part_data/scripts/__pycache__/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
