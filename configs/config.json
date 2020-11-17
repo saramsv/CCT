@@ -1,16 +1,17 @@
 {
-    "name": "CCT",
-    "experim_name": "CCT",
+    "name": "CCTBodyPart_test_eval",
+    "experim_name": "CCTBodyPart_test_eval",
     "n_gpu": 1,
-    "n_labeled_examples": 1464,
+    "n_labeled_examples": 1040,
     "diff_lrs": true,
     "ramp_up": 0.1,
     "unsupervised_w": 30,
-    "ignore_index": 255,
+    "ignore_index": 0,
     "lr_scheduler": "Poly",
     "use_weak_lables":false,
     "weakly_loss_w": 0.4,
     "pretrained": true,
+    "num_classes":7,
 
     "model":{
         "supervised": false,
@@ -57,8 +58,9 @@
 
 
     "train_supervised": {
-        "data_dir": "VOCtrainval_11-May-2012",
-        "batch_size": 10,
+        "data_dir": "/data/sara/CCT/body_part_data/data/",
+        "n_labeled_examples": 1040,
+        "batch_size": 5,
         "crop_size": 320,
         "shuffle": true,
         "base_size": 400,
@@ -70,11 +72,28 @@
         "split": "train_supervised",
         "num_workers": 8
     },
+    "train_unsupervised_sequence": {
+        "data_dir": "/data/sara/CCT/body_part_data/data/",
+        "weak_labels_output": "/data/sara/CCT/pseudo_labels/result/pseudo_labels/",
+        "n_labeled_examples": 100,
+        "batch_size": 5,
+        "crop_size": 320,
+        "shuffle": true,
+        "base_size": 400,
+        "scale": true,
+        "augment": true,
+        "flip": true,
+        "rotate": false,
+        "blur": false,
+        "split": "train_unsupervised_sequence",
+        "num_workers": 8
+    },
 
     "train_unsupervised": {
-        "data_dir": "VOCtrainval_11-May-2012",
-        "weak_labels_output": "pseudo_labels/result/pseudo_labels",
-        "batch_size": 10,
+        "data_dir": "/data/sara/CCT/body_part_data/data/",
+        "weak_labels_output": "/data/sara/CCT/pseudo_labels/result/pseudo_labels/",
+        "n_labeled_examples": 100,
+        "batch_size": 5,
         "crop_size": 320,
         "shuffle": true,
         "base_size": 400,
@@ -88,27 +107,27 @@
     },
 
     "val_loader": {
-        "data_dir": "VOCtrainval_11-May-2012",
-        "batch_size": 1,
+        "data_dir": "/data/sara/CCT/body_part_data/data/",
+        "batch_size": 5,
         "val": true,
         "split": "val",
-        "shuffle": false,
-        "num_workers": 4
+        "shuffle": true,
+        "num_workers": 8
     },
 
     "trainer": {
-        "epochs": 80,
-        "save_dir": "saved/",
+        "epochs": 252,
+        "save_dir": "saved_body_part/",
         "save_period": 5,
   
         "monitor": "max Mean_IoU",
-        "early_stop": 10,
+        "early_stop": 50,
         
         "tensorboardX": true,
-        "log_dir": "saved/",
+        "log_dir": "saved_body_part/",
         "log_per_iter": 20,
 
         "val": true,
-        "val_per_epochs": 5
+        "val_per_epochs": 1
     }
 }
