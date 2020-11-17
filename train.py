@@ -8,7 +8,7 @@ import math
 from utils import Logger
 from trainer import Trainer
 import torch.nn.functional as F
-from utils.losses import abCE_loss, CE_loss, consistency_weight, FocalLoss, softmax_helper
+from utils.losses import abCE_loss, CE_loss, consistency_weight
 
 def get_instance(module, name, config, *args):
     # GET THE CORRESPONDING CLASS / FCT 
@@ -19,22 +19,23 @@ def main(config, resume):
     train_logger = Logger()
 
     # DATA LOADERS
-    config['train_supervised']['n_labeled_examples'] = config['n_labeled_examples']
-    config['train_unsupervised']['n_labeled_examples'] = config['n_labeled_examples']
-    config['train_unsupervised']['use_weak_lables'] = config['use_weak_lables']
-    supervised_loader = dataloaders.VOC(config['train_supervised'])
-    unsupervised_loader = dataloaders.VOC(config['train_unsupervised'])
-    val_loader = dataloaders.VOC(config['val_loader'])
+    #config['train_supervised']['n_labeled_examples'] = config['n_labeled_examples']
+    #config['train_unsupervised']['n_labeled_examples'] = config['n_labeled_examples']
+    #config['train_unsupervised']['use_weak_lables'] = config['use_weak_lables']
+    #supervised_loader = dataloaders.VOC(config['train_supervised'])
+    #unsupervised_loader = dataloaders.VOC(config['train_unsupervised'])
+    #val_loader = dataloaders.VOC(config['val_loader'])
+    
+    supervised_loader = dataloaders.CUS_loader(config['train_supervised'])
+    unsupervised_loader = dataloaders.CUS_loader(config['train_unsupervised'])
+    sequence_loader = dataloaders.CUS_loader(config['train_unsupervised_sequence'])
+    val_loader = dataloaders.CUS_loader(config['val_loader'])
+    
     iter_per_epoch = len(unsupervised_loader)
 
     # SUPERVISED LOSS
     if config['model']['sup_loss'] == 'CE':
         sup_loss = CE_loss
-    elif config['model']['sup_loss'] == 'FL':
-        # pixelcount = [list of pixelcount per object class]
-        # pixelcount = [44502000, 49407, 1279000, 969250]
-        # need to write a function to count pixels
-        sup_loss = FocalLoss(apply_nonlin = softmax_helper, alpha = pixelcount, gamma = 2, smooth = 1e-5)
     else:
         sup_loss = abCE_loss(iters_per_epoch=iter_per_epoch, epochs=config['trainer']['epochs'],
                                 num_classes=val_loader.dataset.num_classes)
@@ -57,6 +58,7 @@ def main(config, resume):
         config=config,
         supervised_loader=supervised_loader,
         unsupervised_loader=unsupervised_loader,
+        sequence_loader=sequence_loader,
         val_loader=val_loader,
         iter_per_epoch=iter_per_epoch,
         train_logger=train_logger)

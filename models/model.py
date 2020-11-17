@@ -1,4 +1,5 @@
 import math, time
+import datetime
 from itertools import chain
 import torch
 import torch.nn.functional as F
@@ -8,7 +9,7 @@ from utils.helpers import set_trainable
 from utils.losses import *
 from models.decoders import *
 from models.encoder import Encoder
-from utils.losses import CE_loss
+
 
 class CCT(BaseModel):
     def __init__(self, num_classes, conf, sup_loss=None, cons_w_unsup=None, ignore_index=None, testing=False,
@@ -81,10 +82,29 @@ class CCT(BaseModel):
 
             self.aux_decoders = nn.ModuleList([*vat_decoder, *drop_decoder, *cut_decoder,
                                     *context_m_decoder, *object_masking, *feature_drop, *feature_noise])
+            
+            temp = [DropOutDecoder(upscale, decoder_in_ch, num_classes,
+            							drop_rate=conf['drop_rate'], spatial_dropout=conf['spatial'])
+            							for _ in range(conf['drop'])]
+            self.seq_decoder = MainDecoder(upscale, decoder_in_ch, num_classes=num_classes)
 
-    def forward(self, x_l=None, target_l=None, x_ul=None, target_ul=None, curr_iter=None, epoch=None):
+
+    #def forward(self, x_l=None, target_l=None, x_ul=None, target_ul=None, curr_iter=None, epoch=None, img_id_l=None, img_id_ul=None):
+    def forward(self, x_l=None, target_l=None, x_ul=None, target_ul=None, curr_iter=None, epoch=None, x_seq_triplet=None, unsupervised_mode=None):
         if not self.training:
             return self.main_decoder(self.encoder(x_l))
+
+        def get_date(x):
+            date_ = x.split('.')[0]
+            y = '00'
+            if date_[3] == '1':
+                y = '12'
+            elif date_[3] == '0':
+                y = '11'
+            m = date_[4:6]
+            d = date_[6:8]
+            date_ = m + d + y
+            return datetime.datetime.strptime(date_, '%m%d%y')
 
         # We compute the losses in the forward pass to avoid problems encountered in muti-gpu 
 
@@ -97,8 +117,6 @@ class CCT(BaseModel):
         # Supervised loss
         if self.sup_type == 'CE':
             loss_sup = self.sup_loss(output_l, target_l, ignore_index=self.ignore_index, temperature=self.softmax_temp) * self.sup_loss_w
-        elif self.sup_type == 'FL':
-            loss_sup = self.sup_loss(output_l,target_l) * self.sup_loss_w
         else:
             loss_sup = self.sup_loss(output_l, target_l, curr_iter=curr_iter, epoch=epoch, ignore_index=self.ignore_index) * self.sup_loss_w
 
@@ -111,35 +129,89 @@ class CCT(BaseModel):
 
         # If semi supervised mode
         elif self.mode == 'semi':
-            # Get main prediction
-            x_ul = self.encoder(x_ul)
-            output_ul = self.main_decoder(x_ul)
+            # Get sequence predictions
+            if unsupervised_mode == 'seq' or unsupervised_mode == 'pertAndSeq':
+                seqs = []
+                for i in range(len(x_seq_triplet)):
+                    x_seq = self.encoder(x_seq_triplet[i][0])
+                    output_seq = self.main_decoder(x_seq)
+                    seqs.append((x_seq, output_seq))
 
-            # Get auxiliary predictions
-            outputs_ul = [aux_decoder(x_ul, output_ul.detach()) for aux_decoder in self.aux_decoders]
-            targets = F.softmax(output_ul.detach(), dim=1)
+                # Get auxiliary predictions
+                seq_losses = []
+                all_outputs_ul = []
+                for pair in seqs:
+                    #outputs_ul = [aux_decoder(pair[0], pair[1].detach()) for aux_decoder in self.aux_decoders]
+                    outputs_ul = [aux_decoder(pair[0]) for aux_decoder in [self.seq_decoder]]
+                    targets = F.softmax(pair[1].detach(), dim=1)
+                    all_outputs_ul.append(outputs_ul)
 
-            # Compute unsupervised loss
-            loss_unsup = sum([self.unsuper_loss(inputs=u, targets=targets, \
-                            conf_mask=self.confidence_masking, threshold=self.confidence_th, use_softmax=False)
-                            for u in outputs_ul])
-            loss_unsup = (loss_unsup / len(outputs_ul))
+                    # Compute unsupervised loss
+                    loss_seq = sum([self.unsuper_loss(inputs=u, targets=targets, conf_mask=self.confidence_masking,
+                        threshold=self.confidence_th, use_softmax=False) for u in outputs_ul])
+                    loss_seq = (loss_seq / len(outputs_ul))
+                    seq_losses.append(loss_seq)
+
+                loss_seq = np.sum(seq_losses)
+                loss_seq_accross_decoder = []
+                for i in range(len(all_outputs_ul)):
+                    for j in range(i+1,len(all_outputs_ul)):
+                        pert_loss = 0
+                        for z in range(len(all_outputs_ul[0])):
+                            pert_loss += self.unsuper_loss(inputs=all_outputs_ul[i][z], targets=all_outputs_ul[j][z], conf_mask=self.confidence_masking,threshold=self.confidence_th, use_softmax=False)
+                        pert_loss = pert_loss / len(all_outputs_ul[0])
+                        loss_seq_accross_decoder.append(pert_loss)
+                loss_seq += np.sum(loss_seq_accross_decoder) #/len(loss_seq_accross_decoder)
+
+                output_seqs = []
+                for i in range(len(seqs)):
+                    temp_x_seq = seqs[i][0]
+                    temp_output_seq = seqs[i][1]
+                    if temp_output_seq.shape != temp_x_seq.shape:
+                        temp_output_seq = F.interpolate(temp_output_seq, size=input_size, mode='bilinear', align_corners=True)
+                    output_seqs.append(temp_output_seq)
+
+                # TODO: Figure out why we only return the first output from the main decoder.
+                outputs = {'sup_pred': output_l, 'unsup_pred': output_seqs[0]}
+                #loss_seq = (loss_seq / 3)
+                weight_u = self.unsup_loss_w(epoch=epoch, curr_iter=curr_iter)
+                loss_seq = loss_seq * weight_u
+
+            if unsupervised_mode != 'seq':
+                # Get main prediction
+                x_ul = self.encoder(x_ul)
+                output_ul = self.main_decoder(x_ul)
+                # Get auxiliary predictions
+                outputs_ul = [aux_decoder(x_ul, output_ul.detach()) for aux_decoder in self.aux_decoders]
+                targets = F.softmax(output_ul.detach(), dim=1)
+                # Compute unsupervised loss
+                loss_unsup = sum([self.unsuper_loss(inputs=u, targets=targets, conf_mask=self.confidence_masking,
+                    threshold=self.confidence_th, use_softmax=False) for u in outputs_ul])
+                loss_unsup = (loss_unsup / len(outputs_ul))
+
+                if output_ul.shape != x_l.shape:
+                    output_ul = F.interpolate(output_ul, size=input_size, mode='bilinear', align_corners=True)
+                outputs = {'sup_pred': output_l, 'unsup_pred': output_ul}
+
+                weight_u = self.unsup_loss_w(epoch=epoch, curr_iter=curr_iter)
+                loss_unsup = loss_unsup * weight_u
+
+
             curr_losses = {'loss_sup': loss_sup}
-
-            if output_ul.shape != x_l.shape:
-                output_ul = F.interpolate(output_ul, size=input_size, mode='bilinear', align_corners=True)
-            outputs = {'sup_pred': output_l, 'unsup_pred': output_ul}
-
-            # Compute the unsupervised loss
-            weight_u = self.unsup_loss_w(epoch=epoch, curr_iter=curr_iter)
-            loss_unsup = loss_unsup * weight_u
-            curr_losses['loss_unsup'] = loss_unsup
-            total_loss = loss_unsup  + loss_sup
+            if unsupervised_mode == 'seq':
+                curr_losses['loss_unsup'] = loss_seq 
+                total_loss = loss_seq + loss_sup
+            elif unsupervised_mode == 'pertAndSeq':
+                curr_losses['loss_unsup'] = loss_seq + loss_unsup 
+                total_loss = loss_seq + loss_unsup + loss_sup
+            else:
+                curr_losses['loss_unsup'] = loss_unsup 
+                total_loss = loss_unsup + loss_sup
 
             # If case we're using weak lables, add the weak loss term with a weight (self.weakly_loss_w)
             if self.use_weak_lables:
                 weight_w = (weight_u / self.unsup_loss_w.final_w) * self.weakly_loss_w
-                loss_weakly = sum([CE_loss(outp, target_ul, ignore_index=self.ignore_index) for outp in outputs_ul]) / len(outputs_ul)
+                loss_weakly = sum([self.sup_loss(outp, target_ul, ignore_index=self.ignore_index) for outp in outputs_ul]) / len(outputs_ul)
                 loss_weakly = loss_weakly * weight_w
                 curr_losses['loss_weakly'] = loss_weakly
                 total_loss += loss_weakly
@@ -158,7 +230,7 @@ class CCT(BaseModel):
     def get_other_params(self):
         if self.mode == 'semi':
             return chain(self.encoder.get_module_params(), self.main_decoder.parameters(), 
-                        self.aux_decoders.parameters())
+                        self.aux_decoders.parameters(), self.seq_decoder.parameters())
 
         return chain(self.encoder.get_module_params(), self.main_decoder.parameters())
 

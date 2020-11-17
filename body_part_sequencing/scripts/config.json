@@ -1,0 +1,4 @@
+{
+	"model_path": "/home/mousavi/da1/icputrd/bodyPartClassification/models/vgg/vgg_10000_epoch_-026-_acc_0.997706-_val_acc_0.97035.h5",
+	"resnet_weigth_path": "/data/sara/SChISM/data/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5"
+}

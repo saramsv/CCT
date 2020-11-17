@@ -1,1 +1,1 @@
-from .voc import VOC
+from .custom import CUS_loader

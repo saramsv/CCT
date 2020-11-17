@@ -16,12 +16,13 @@ from utils.helpers import DeNormalize
 
 
 class Trainer(BaseTrainer):
-    def __init__(self, model, resume, config, supervised_loader, unsupervised_loader, iter_per_epoch,
+    def __init__(self, model, resume, config, supervised_loader, unsupervised_loader, sequence_loader, iter_per_epoch,
                 val_loader=None, train_logger=None):
         super(Trainer, self).__init__(model, resume, config, iter_per_epoch, train_logger)
         
         self.supervised_loader = supervised_loader
         self.unsupervised_loader = unsupervised_loader
+        self.sequence_loader = sequence_loader
         self.val_loader = val_loader
 
         self.ignore_index = self.val_loader.dataset.ignore_index
@@ -32,7 +33,6 @@ class Trainer(BaseTrainer):
 
         self.num_classes = self.val_loader.dataset.num_classes
         self.mode = self.model.module.mode
-
         # TRANSORMS FOR VISUALIZATION
         self.restore_transform = transforms.Compose([
             DeNormalize(self.val_loader.MEAN, self.val_loader.STD),
@@ -42,6 +42,7 @@ class Trainer(BaseTrainer):
             transforms.ToTensor()])
 
         self.start_time = time.time()
+        self.unsupervised_mode = 'seq'#'pertAndSeq' #'seq' 'pert' #pert for perturbation
 
 
 
@@ -55,38 +56,89 @@ class Trainer(BaseTrainer):
             dataloader = iter(self.supervised_loader)
             tbar = tqdm(range(len(self.supervised_loader)), ncols=135)
         else:
-            dataloader = iter(zip(cycle(self.supervised_loader), self.unsupervised_loader))
-            tbar = tqdm(range(len(self.unsupervised_loader)), ncols=135)
+            if self.unsupervised_mode == 'seq':
+                dataloader = iter(zip(cycle(self.supervised_loader), self.sequence_loader))
+                tbar = tqdm(range(len(self.sequence_loader)), ncols=135)
+            elif self.unsupervised_mode == 'pertAndSeq':
+                dataloader = iter(zip(cycle(self.supervised_loader), cycle(self.unsupervised_loader), self.sequence_loader))
+                tbar = tqdm(range(len(self.sequence_loader)), ncols=135)
+            else:
+                dataloader = iter(zip(cycle(self.supervised_loader), self.unsupervised_loader))
+                tbar = tqdm(range(len(self.unsupervised_loader)), ncols=135)
 
         self._reset_metrics()
+        input_target_img_id_triplets = [] 
         for batch_idx in tbar:
             if self.mode == 'supervised':
-                (input_l, target_l), (input_ul, target_ul) = next(dataloader), (None, None)
+                (input_l, target_l, img_id_l), (input_ul, target_ul, img_id_ul) = next(dataloader), (None, None, None)
             else:
-                (input_l, target_l), (input_ul, target_ul) = next(dataloader)
-                input_ul, target_ul = input_ul.cuda(non_blocking=True), target_ul.cuda(non_blocking=True)
+                inp=next(dataloader)
+                (input_l, target_l, img_id_l) = inp[0]
+                if self.unsupervised_mode == 'seq':
+                    for i in range(len(inp[1])):
+                        (input_seq, target_seq, img_id_seq) = inp[1][i]
+                        input_seq, target_seq = input_seq.cuda(non_blocking=True), target_seq.cuda(non_blocking=True)
+                        input_target_img_id_triplets.append((input_seq, target_seq, img_id_seq))
+
+                elif self.unsupervised_mode == 'pertAndSeq':
+                    (input_ul, target_ul, img_id_ul) = inp[1]
+                    input_ul, target_ul = input_ul.cuda(non_blocking=True), target_ul.cuda(non_blocking=True)
+                    for i in range(len(inp[2])):
+                        (input_seq, target_seq, img_id_seq) = inp[2][i]
+                        input_seq, target_seq = input_seq.cuda(non_blocking=True), target_seq.cuda(non_blocking=True)
+                        input_target_img_id_triplets.append((input_seq, target_seq, img_id_seq))
+                else:
+                    (input_ul, target_ul, img_id_ul) = inp[1]
+                    input_ul, target_ul = input_ul.cuda(non_blocking=True), target_ul.cuda(non_blocking=True)
+                
+
 
             input_l, target_l = input_l.cuda(non_blocking=True), target_l.cuda(non_blocking=True)
             self.optimizer.zero_grad()
 
-            total_loss, cur_losses, outputs = self.model(x_l=input_l, target_l=target_l, x_ul=input_ul,
-                                                        curr_iter=batch_idx, target_ul=target_ul, epoch=epoch-1)
+            target_l = target_l[:,:,:,0]
+            if self.unsupervised_mode == 'seq':
+                total_loss, cur_losses, outputs = self.model(x_l=input_l, target_l=target_l, 
+                        curr_iter=batch_idx, epoch=epoch-1, 
+                        x_seq_triplet=input_target_img_id_triplets, 
+                        unsupervised_mode=self.unsupervised_mode) 
+            elif self.unsupervised_mode == 'pertAndSeq':
+                total_loss, cur_losses, outputs = self.model(x_l=input_l, target_l=target_l, 
+                        x_ul=input_ul,curr_iter=batch_idx, target_ul=target_ul, epoch=epoch-1, 
+                        x_seq_triplet=input_target_img_id_triplets, 
+                        unsupervised_mode=self.unsupervised_mode) 
+                
+            else:
+                total_loss, cur_losses, outputs = self.model(x_l=input_l, target_l=target_l, 
+                    #curr_iter=batch_idx, epoch=epoch-1,unsupervised_mode=self.unsupervised_mode)
+                    x_ul=input_ul,curr_iter=batch_idx, target_ul=target_ul, epoch=epoch-1,unsupervised_mode=self.unsupervised_mode)
+
             total_loss = total_loss.mean()
             total_loss.backward()
             self.optimizer.step()
 
             self._update_losses(cur_losses)
-            self._compute_metrics(outputs, target_l, target_ul, epoch-1)
+            #self._compute_metrics(outputs, target_l, target_ul, epoch-1)
+            self._compute_metrics(outputs, target_l, epoch-1)
             logs = self._log_values(cur_losses)
             
             if batch_idx % self.log_step == 0:
                 self.wrt_step = (epoch - 1) * len(self.unsupervised_loader) + batch_idx
                 self._write_scalars_tb(logs)
+            print(len(self.unsupervised_loader))
+            #if batch_idx % int(len(self.unsupervised_loader)*0.9) == 0:
+                #self._write_img_tb(input_l, target_l, input_ul, target_ul, outputs, epoch)
+                #self._write_img_tb(input_l, target_l, outputs, epoch)
+            self._write_img_tb(input_l, target_l, outputs, epoch)
 
-            if batch_idx % int(len(self.unsupervised_loader)*0.9) == 0:
-                self._write_img_tb(input_l, target_l, input_ul, target_ul, outputs, epoch)
-
-            del input_l, target_l, input_ul, target_ul
+            if self.unsupervised_mode == 'seq':
+                del input_target_img_id_triplets
+                input_target_img_id_triplets = []
+            elif self.unsupervised_mode == 'pertAndSeq':
+                del input_target_img_id_triplets
+                input_target_img_id_triplets = []
+                del input_ul, target_ul 
+            del input_l, target_l
             del total_loss, cur_losses, outputs
             
             tbar.set_description('T ({}) | Ls {:.2f} Lu {:.2f} Lw {:.2f} PW {:.2f} m1 {:.2f} m2 {:.2f}|'.format(
@@ -114,7 +166,10 @@ class Trainer(BaseTrainer):
         tbar = tqdm(self.val_loader, ncols=130)
         with torch.no_grad():
             val_visual = []
-            for batch_idx, (data, target) in enumerate(tbar):
+
+            for batch_idx, (data, target, image_id) in enumerate(tbar):
+                #print(data.shape, target.shape)
+                target = target[:,:,:,0]
                 target, data = target.cuda(non_blocking=True), data.cuda(non_blocking=True)
 
                 H, W = target.size(1), target.size(2)
@@ -128,7 +183,8 @@ class Trainer(BaseTrainer):
                 loss = F.cross_entropy(output, target, ignore_index=self.ignore_index)
                 total_loss_val.update(loss.item())
 
-                correct, labeled, inter, union = eval_metrics(output, target, self.num_classes, self.ignore_index)
+                correct, labeled, inter, union = eval_metrics(output, target, self.num_classes, 
+                        self.ignore_index)
                 total_inter, total_union = total_inter+inter, total_union+union
                 total_correct, total_label = total_correct+correct, total_label+labeled
 
@@ -197,19 +253,20 @@ class Trainer(BaseTrainer):
 
 
 
-    def _compute_metrics(self, outputs, target_l, target_ul, epoch):
+    #def _compute_metrics(self, outputs, target_l, target_ul, epoch):
+    def _compute_metrics(self, outputs, target_l, epoch):
         seg_metrics_l = eval_metrics(outputs['sup_pred'], target_l, self.num_classes, self.ignore_index)
         self._update_seg_metrics(*seg_metrics_l, True)
         seg_metrics_l = self._get_seg_metrics(True)
         self.pixel_acc_l, self.mIoU_l, self.class_iou_l = seg_metrics_l.values()
 
+        '''
         if self.mode == 'semi':
             seg_metrics_ul = eval_metrics(outputs['unsup_pred'], target_ul, self.num_classes, self.ignore_index)
             self._update_seg_metrics(*seg_metrics_ul, False)
             seg_metrics_ul = self._get_seg_metrics(False)
             self.pixel_acc_ul, self.mIoU_ul, self.class_iou_ul = seg_metrics_ul.values()
-            
-
+        '''
 
     def _update_seg_metrics(self, correct, labeled, inter, union, supervised=True):
         if supervised:
@@ -285,15 +342,16 @@ class Trainer(BaseTrainer):
 
 
 
-    def _write_img_tb(self, input_l, target_l, input_ul, target_ul, outputs, epoch):
+    #def _write_img_tb(self, input_l, target_l, input_ul, target_ul, outputs, epoch):
+    def _write_img_tb(self, input_l, target_l, outputs, epoch):
         outputs_l_np = outputs['sup_pred'].data.max(1)[1].cpu().numpy()
         targets_l_np = target_l.data.cpu().numpy()
         imgs = [[i.data.cpu(), j, k] for i, j, k in zip(input_l, outputs_l_np, targets_l_np)]
         self._add_img_tb(imgs, 'supervised')
-
+        '''
         if self.mode == 'semi':
             outputs_ul_np = outputs['unsup_pred'].data.max(1)[1].cpu().numpy()
             targets_ul_np = target_ul.data.cpu().numpy()
             imgs = [[i.data.cpu(), j, k] for i, j, k in zip(input_ul, outputs_ul_np, targets_ul_np)]
             self._add_img_tb(imgs, 'unsupervised')
-
+        '''
