@@ -18,6 +18,7 @@ def _work(process_id, model, dataset, args):
     databin = dataset[process_id]
     n_gpus = torch.cuda.device_count()
     data_loader = DataLoader(databin, shuffle=False, num_workers=args.num_workers // n_gpus, pin_memory=False)
+    #data_loader = DataLoader(databin, shuffle=False, num_workers=0, pin_memory=False)
 
     with torch.no_grad(), cuda.device(process_id):
 
@@ -34,7 +35,6 @@ def _work(process_id, model, dataset, args):
 
             outputs = [model(img[0].cuda(non_blocking=True))
                        for img in pack['img']]
-
             strided_cam = torch.sum(torch.stack(
                 [F.interpolate(torch.unsqueeze(o, 0), strided_size, mode='bilinear', align_corners=False)[0] for o
                  in outputs]), 0)
@@ -46,18 +46,21 @@ def _work(process_id, model, dataset, args):
             valid_cat = torch.nonzero(label)[:, 0]
 
             strided_cam = strided_cam[valid_cat]
-            strided_cam /= F.adaptive_max_pool2d(strided_cam, (1, 1)) + 1e-5
+            try:
+                strided_cam /= F.adaptive_max_pool2d(strided_cam, (1, 1)) + 1e-5
+                highres_cam = highres_cam[valid_cat]
+                highres_cam /= F.adaptive_max_pool2d(highres_cam, (1, 1)) + 1e-5
 
-            highres_cam = highres_cam[valid_cat]
-            highres_cam /= F.adaptive_max_pool2d(highres_cam, (1, 1)) + 1e-5
+                # save cams
+                np.save(os.path.join(args.cam_out_dir, img_name.replace('/', '_') + '.npy'),
+                        {"keys": valid_cat, "cam": strided_cam.cpu(), "high_res": highres_cam.cpu().numpy()})
 
-            # save cams
-            np.save(os.path.join(args.cam_out_dir, img_name + '.npy'),
-                    {"keys": valid_cat, "cam": strided_cam.cpu(), "high_res": highres_cam.cpu().numpy()})
+                if process_id == n_gpus - 1 and iter % (len(databin) // 20) == 0:
+                    print("%d " % ((5*iter+1)//(len(databin) // 20)), end='')
 
-            if process_id == n_gpus - 1 and iter % (len(databin) // 20) == 0:
-                print("%d " % ((5*iter+1)//(len(databin) // 20)), end='')
-
+            except:
+                print("worked")
+                continue
 
 def run(args):
     model = getattr(importlib.import_module(args.cam_network), 'CAM')()
@@ -72,6 +75,7 @@ def run(args):
 
     print('[ ', end='')
     multiprocessing.spawn(_work, nprocs=n_gpus, args=(model, dataset, args), join=True)
+    #_work(0, model, dataset, args)
     print(']')
 
     torch.cuda.empty_cache()

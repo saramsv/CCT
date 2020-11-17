@@ -1,3 +1,20 @@
+body_part_data/data/
+VOCtrainval_11-May-2012*
+pseudo_labels/result*
+pseudo_labels/saved*
+body_part_data/trained_models
+pseudo_labels/voc12/AllLabeledBodyPartNewNaming
+pseudo_labels/voc12/AllLabeledBodyPartNewNamingExtended
+pseudo_labels/voc12/all_clustersCleanedByNoahSaraKelley
+pseudo_labels/voc12/all_clustersCleanedByNoahSaraKelleyExtended
+pseudo_labels/voc12/decom_cls_labels_zyang.npy
+pseudo_labels/voc12/images_that_got_included
+pseudo_labels/voc12/sequences
+pseudo_labels/voc12/sequences_pseudo_labels
+outputs
+*core*
+saved*
+body_part_data/scripts/__pycache__/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
