@@ -74,8 +74,6 @@ class Trainer(BaseTrainer):
             else:
                 inp=next(dataloader)
                 (input_l, target_l, img_id_l) = inp[0]
-                print(self.unsupervised_mode)
-                exit()
                 if self.unsupervised_mode == 'seq':
                     for i in range(len(inp[1])):
                         (input_seq, target_seq, img_id_seq) = inp[1][i]

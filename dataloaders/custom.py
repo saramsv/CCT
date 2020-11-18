@@ -23,16 +23,11 @@ class CUS_Dataset(BaseDataSet):
         if self.split == "val":
             file_list = os.path.join("{}/val.txt".format(self.root))
         elif self.split == 'train_supervised':
-            file_list = os.path.join("{}/sup_eval.txt".format(self.root))
-            #file_list = os.path.join("{}/sup_train.txt".format(self.root))
-            #file_list = os.path.join("{}/weak_sup.txt".format(self.root)) 
+            file_list = os.path.join("{}/sup_train.txt".format(self.root))
         elif self.split == "train_unsupervised":
-            file_list = os.path.join("{}/unsup_eval.txt".format(self.root))
-            #file_list = os.path.join("{}/unsup_train.txt".format(self.root))
-            #file_list = os.path.join("{}/weak_unsup.txt".format(self.root))
+            file_list = os.path.join("{}/unsup_train.txt".format(self.root))
         elif self.split == "train_unsupervised_sequence":
-            file_list = os.path.join("{}/unsup_eval_3seq.txt".format(self.root))
-            #file_list = os.path.join("{}/unsup_train_5seq.txt".format(self.root))
+            file_list = os.path.join("{}/unsup_train_seq.txt".format(self.root))
         else:
             raise ValueError(f"Invalid split name {self.split}")
 

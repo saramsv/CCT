@@ -149,7 +149,8 @@ class CCT(BaseModel):
                 all_outputs_ul = []
                 for pair in seqs:
                     #outputs_ul = [aux_decoder(pair[0], pair[1].detach()) for aux_decoder in self.aux_decoders]
-                    outputs_ul = [aux_decoder(pair[0]) for aux_decoder in [self.seq_decoder]]
+                    #outputs_ul = [aux_decoder(pair[0]) for aux_decoder in [self.seq_decoder]]
+                    outputs_ul = [aux_decoder(pair[0], pair[1].detach()) for aux_decoder in self.seq_decoder]
                     targets = F.softmax(pair[1].detach(), dim=1)
                     all_outputs_ul.append(outputs_ul)
 
