@@ -10,6 +10,7 @@
     "lr_scheduler": "Poly",
     "use_weak_lables":false,
     "weakly_loss_w": 0.4,
+	"unsupervised_mode": "seq",
     "pretrained": true,
     "num_classes":7,
 

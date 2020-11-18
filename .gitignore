@@ -4,6 +4,7 @@ body_part_sequencing/__pycache__/
 body_part_sequencing/scripts/__pycache__/
 VOCtrainval_11-May-2012*
 pseudo_labels/result*
+saved_body_part/
 pseudo_labels/saved*
 pseudo_labels/voc12/AllLabeledBodyPartNewNaming
 pseudo_labels/voc12/AllLabeledBodyPartNewNamingExtended

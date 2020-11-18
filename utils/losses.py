@@ -91,7 +91,7 @@ class FocalLoss(nn.Module):
             assert len(alpha) == num_class
             alpha = torch.FloatTensor(alpha).view(num_class, 1)
             alpha = alpha / alpha.sum()
-			alpha = 1/alpha # inverse of class frequency
+            alpha = 1/alpha # inverse of class frequency
         elif isinstance(alpha, float):
             alpha = torch.ones(num_class, 1)
             alpha = alpha * (1 - self.alpha)
@@ -107,31 +107,31 @@ class FocalLoss(nn.Module):
 
         one_hot_key = torch.FloatTensor(target.size(0), num_class).zero_()
 	
-	# to resolve error in idx in scatter_
-	for i in range(idx.size(0)):
-	    if idx[i] == 255:
-	        idx[i] = 0
-        one_hot_key = one_hot_key.scatter_(1, idx, 1)
-        if one_hot_key.device != logit.device:
-            one_hot_key = one_hot_key.to(logit.device)
+        # to resolve error in idx in scatter_
+        for i in range(idx.size(0)):
+            if idx[i] == 255:
+                idx[i] = 0
+            one_hot_key = one_hot_key.scatter_(1, idx, 1)
+            if one_hot_key.device != logit.device:
+                one_hot_key = one_hot_key.to(logit.device)
 
-        if self.smooth:
-            one_hot_key = torch.clamp(
-                one_hot_key, self.smooth/(num_class-1), 1.0 - self.smooth)
-        pt = (one_hot_key * logit).sum(1) + self.smooth
-        logpt = pt.log()
+            if self.smooth:
+                one_hot_key = torch.clamp(
+                    one_hot_key, self.smooth/(num_class-1), 1.0 - self.smooth)
+            pt = (one_hot_key * logit).sum(1) + self.smooth
+            logpt = pt.log()
 
-        gamma = self.gamma
+            gamma = self.gamma
 
-        alpha = alpha[idx]
-        alpha = torch.squeeze(alpha)
-        loss = -1 * alpha * torch.pow((1 - pt), gamma) * logpt
+            alpha = alpha[idx]
+            alpha = torch.squeeze(alpha)
+            loss = -1 * alpha * torch.pow((1 - pt), gamma) * logpt
 
-        if self.size_average:
-            loss = loss.mean()
-        else:
-            loss = loss.sum()
-        return loss
+            if self.size_average:
+                loss = loss.mean()
+            else:
+                loss = loss.sum()
+            return loss
 
 
 class abCE_loss(nn.Module):

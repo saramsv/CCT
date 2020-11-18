@@ -168,16 +168,34 @@ class BaseDataSet(Dataset):
 
     def __len__(self):
         return len(self.files)
-  
+
     def __getitem__(self, index):
-        image, label, image_id =  self._load_data(index)
+        inp = self._load_data(index)
+        if type(inp[0]) is list:
+            results = [] 
+            for image, label, image_id in inp[0]:
+                results.append(self._getitem_single(image, label, image_id))
+            return tuple(results)
+
+        #try:
+        image, label, image_id = inp
+        #except:
+            #import bpython
+            #bpython.embed(locals())
+
+        return self._getitem_single(image, label, image_id)
+  
+    def _getitem_single(self, image, label, image_id):
         if self.val:
             image, label = self._val_augmentation(image, label)
         elif self.augment:
             image, label = self._augmentation(image, label)
 
         label = torch.from_numpy(np.array(label, dtype=np.int32)).long()
-        return image, label
+        #print("label shape", label.shape)
+        #print("image shape", image.shape)
+        #print("image id", image_id)
+        return image, label, image_id
 
     def __repr__(self):
         fmt_str = "Dataset: " + self.__class__.__name__ + "\n"

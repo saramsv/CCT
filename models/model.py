@@ -82,11 +82,16 @@ class CCT(BaseModel):
 
             self.aux_decoders = nn.ModuleList([*vat_decoder, *drop_decoder, *cut_decoder,
                                     *context_m_decoder, *object_masking, *feature_drop, *feature_noise])
-            
+            ''' 
             temp = [DropOutDecoder(upscale, decoder_in_ch, num_classes,
             							drop_rate=conf['drop_rate'], spatial_dropout=conf['spatial'])
             							for _ in range(conf['drop'])]
             self.seq_decoder = MainDecoder(upscale, decoder_in_ch, num_classes=num_classes)
+            '''
+
+            vat_decoder_seq = [VATDecoder(upscale, decoder_in_ch, num_classes, xi=conf['xi'],
+            							eps=conf['eps']) for _ in range(conf['vat'])]
+            self.seq_decoder = nn.ModuleList([*vat_decoder_seq])
 
 
     #def forward(self, x_l=None, target_l=None, x_ul=None, target_ul=None, curr_iter=None, epoch=None, img_id_l=None, img_id_ul=None):
@@ -196,7 +201,7 @@ class CCT(BaseModel):
                 outputs = {'sup_pred': output_l, 'unsup_pred': output_ul}
 
                 weight_u = self.unsup_loss_w(epoch=epoch, curr_iter=curr_iter)
-                loss_unsup = loss_unsup * weight_u
+                loss_unsup = loss_unsup #* weight_u
 
 
             curr_losses = {'loss_sup': loss_sup}

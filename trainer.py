@@ -42,7 +42,7 @@ class Trainer(BaseTrainer):
             transforms.ToTensor()])
 
         self.start_time = time.time()
-        self.unsupervised_mode = 'seq'#'pertAndSeq' #'seq' 'pert' #pert for perturbation
+        self.unsupervised_mode = config['unsupervised_mode'] #'seq'#'pertAndSeq' #'seq' 'pert' #pert for perturbation
 
 
 
@@ -74,6 +74,8 @@ class Trainer(BaseTrainer):
             else:
                 inp=next(dataloader)
                 (input_l, target_l, img_id_l) = inp[0]
+                print(self.unsupervised_mode)
+                exit()
                 if self.unsupervised_mode == 'seq':
                     for i in range(len(inp[1])):
                         (input_seq, target_seq, img_id_seq) = inp[1][i]
@@ -125,11 +127,9 @@ class Trainer(BaseTrainer):
             if batch_idx % self.log_step == 0:
                 self.wrt_step = (epoch - 1) * len(self.unsupervised_loader) + batch_idx
                 self._write_scalars_tb(logs)
-            print(len(self.unsupervised_loader))
-            #if batch_idx % int(len(self.unsupervised_loader)*0.9) == 0:
+            if batch_idx % int(len(self.unsupervised_loader)*0.9) == 0:
                 #self._write_img_tb(input_l, target_l, input_ul, target_ul, outputs, epoch)
-                #self._write_img_tb(input_l, target_l, outputs, epoch)
-            self._write_img_tb(input_l, target_l, outputs, epoch)
+                self._write_img_tb(input_l, target_l, outputs, epoch)
 
             if self.unsupervised_mode == 'seq':
                 del input_target_img_id_triplets
