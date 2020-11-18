@@ -1,0 +1,4 @@
+#CUDA_VISIBLE_DEVICES=0 python3 inference.py --config configs/config.json --model saved_body_part/potential_for_the_paper/CCTBodyPart_test/checkpoint.pth --images /data/sara/CCT/seqs_imgs/ --save preds_basic_seqs_imgs
+#CUDA_VISIBLE_DEVICES=0 python3 inference.py --config configs/config.json --model saved_body_part/potential_for_the_paper/CCTBodyPartPertSeqMultiDecoder_test/checkpoint.pth   --images /data/sara/CCT/seqs_imgs/ --save preds_advanced_seqs_imgs
+#CUDA_VISIBLE_DEVICES=2 python3 inference.py --config configs/config.json --model saved_body_part/CCTBodyPartSeq3DecoderPertUnlabelsStart0_test/checkpoint.pth   --images /data/sara/image-segmentation-keras/test_imgs/ --save preds_advanced_5seqPlusPert_imgs
+CUDA_VISIBLE_DEVICES=2 python3 inference.py --config configs/config.json --model saved_body_part/CCTBodyPartSeq5DecoderStart0_test/checkpoint.pth   --images /data/sara/image-segmentation-keras/test_imgs/ --save preds_advanced_5seq_imgs

@@ -27,7 +27,8 @@ class testDataset(Dataset):
         mean = [0.485, 0.456, 0.406]
         std = [0.229, 0.224, 0.225]
         images_path = Path(images)
-        self.filelist = list(images_path.glob("*.jpg"))
+        # self.filelist = list(images_path.glob("*.jpg"))
+        self.filelist = list(images_path.glob("*.JPG"))
         self.to_tensor = transforms.ToTensor()
         self.normalize = transforms.Normalize(mean, std)
 
@@ -36,7 +37,7 @@ class testDataset(Dataset):
 
     def __getitem__(self, index):
         image_path = self.filelist[index]
-        image_id = str(image_path).split("/")[-1].split(".")[0]
+        image_id = str(image_path).split("/")[-1][:-4]
         image = Image.open(image_path)
         image = self.normalize(self.to_tensor(image))
         return image, image_id
@@ -74,7 +75,7 @@ def main():
     # DATA
     testdataset = testDataset(args.images)
     loader = DataLoader(testdataset, batch_size=1, shuffle=False, num_workers=1)
-    num_classes = 21
+    num_classes = config['num_classes']
     palette = get_voc_pallete(num_classes)
 
     # MODEL
@@ -91,8 +92,10 @@ def main():
     model.eval()
     model.cuda()
 
-    if args.save and not os.path.exists('outputs'):
-        os.makedirs('outputs')
+    #if args.save and not os.path.exists('outputs'):
+    #    os.makedirs('outputs')
+    if not os.path.exists(args.save):
+        os.makedirs(args.save)
 
     # LOOP OVER THE DATA
     tbar = tqdm(loader, ncols=100)
@@ -103,6 +106,7 @@ def main():
         image, image_id = data
         image = image.cuda()
 
+
         # PREDICT
         with torch.no_grad():
             output = multi_scale_predict(model, image, scales, num_classes)
@@ -110,7 +114,7 @@ def main():
 
         # SAVE RESULTS
         prediction_im = colorize_mask(prediction, palette)
-        prediction_im.save('outputs/'+image_id[0]+'.png')
+        prediction_im.save(args.save + '/' + image_id[0]+ '.png')
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='PyTorch Training')
@@ -118,9 +122,9 @@ def parse_arguments():
                         help='Path to the config file')
     parser.add_argument( '--model', default=None, type=str,
                         help='Path to the trained .pth model')
-    parser.add_argument( '--save', action='store_true', help='Save images')
     parser.add_argument('--images', default="/home/yassine/Datasets/vision/PascalVoc/VOC/VOCdevkit/VOC2012/test_images", type=str,
                         help='Test images for Pascal VOC')
+    parser.add_argument('--save', default="outputs", type=str)
     args = parser.parse_args()
     return args
 
