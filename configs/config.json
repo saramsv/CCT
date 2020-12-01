@@ -1,6 +1,6 @@
 {
-    "name": "seq2",
-    "experim_name": "seq2",
+    "name": "lrseq10",
+    "experim_name": "lrseq10",
     "n_gpu": 1,
     "n_labeled_examples": 1040,
     "diff_lrs": true,
@@ -51,7 +51,7 @@
     "optimizer": {
         "type": "SGD",
         "args":{
-            "lr": 1e-3,
+            "lr": 1e-2,
             "weight_decay": 1e-4,
             "momentum": 0.9
         }

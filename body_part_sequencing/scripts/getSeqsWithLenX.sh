@@ -1,9 +1,9 @@
 # At the end you need to edit the file and add /usb/ to each image_name
 seq_len=$1
-grep -w $seq_len /data/sara/TCT/CCT/body_part_sequencing/data/sequences/all_seqs_lengths | shuf | rev|cut -d " " -f 1|rev > ../data/seqsNamesWithLen$seq_len"Shuffed"
+grep -w $seq_len /data/sara/TCT/CCT/body_part_sequencing/data/sequences/all_seqs_lengths | shuf | rev|cut -d " " -f 1|rev > /data/sara/TCT/CCT/body_part_sequencing/data/seqsNamesWithLen$seq_len"Shuffeled"
 i=0
 rm /data/sara/TCT/CCT/body_part_sequencing/data/unsup_train_seq.txt
-cat /data/sara/TCT/CCT/body_part_sequencing/data/seqsNamesWithLen$seq_len"Shuffed" | while read line
+cat /data/sara/TCT/CCT/body_part_sequencing/data/seqsNamesWithLen$seq_len"Shuffeled" | while read line
 do
 	all_seq=""
 	imgs=$(grep -w $line /data/sara/TCT/CCT/body_part_sequencing/data/sequences/*pcaed_sequenced | cut -d ":" -f 2| rev| cut -d "/" -f 1| rev | sed 's/.icon//' )

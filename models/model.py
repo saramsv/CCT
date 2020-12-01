@@ -183,7 +183,7 @@ class CCT(BaseModel):
                 outputs = {'sup_pred': output_l, 'unsup_pred': output_seqs[0]}
                 #loss_seq = (loss_seq / 3)
                 weight_u = self.unsup_loss_w(epoch=epoch, curr_iter=curr_iter)
-                loss_seq = loss_seq * weight_u
+                loss_seq = loss_seq #* weight_u
 
             if unsupervised_mode != 'seq':
                 # Get main prediction
